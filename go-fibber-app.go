@@ -2,27 +2,22 @@ package main
 
 import (
 	"fmt"
-	"github.com/jatan/go-fiber-app/model"
 	"log"
 	"net/http"
+
+	userModel "github.com/jatan/go-fiber-app/model"
 
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 	_ "gorm.io/driver/sqlite"
 )
 
-type User struct {
-	gorm.Model
-	Name  string
-	Email string
-}
-
 func handleRequests() {
 	myRouter := mux.NewRouter().StrictSlash(true)
-	myRouter.HandleFunc("/users", allUsers).Methods("GET")
-	myRouter.HandleFunc("/user/{name}", deleteUser).Methods("DELETE")
-	myRouter.HandleFunc("/user/{name}/{email}", updateUser).Methods("PUT")
-	myRouter.HandleFunc("/user/{name}/{email}", newUser).Methods("POST")
+	myRouter.HandleFunc("/users", userModel.AllUsers).Methods("GET")
+	myRouter.HandleFunc("/user/{name}", userModel.DeleteUser).Methods("DELETE")
+	myRouter.HandleFunc("/user/{name}/{email}", userModel.UpdateUser).Methods("PUT")
+	myRouter.HandleFunc("/user/{name}/{email}", userModel.NewUser).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8081", myRouter))
 }
 
@@ -35,7 +30,7 @@ func initialMigration() {
 	defer db.Close()
 
 	// Migrate the schema
-	db.AutoMigrate(&User{})
+	// db.AutoMigrate(userModel.(&User){})
 }
 
 func main() {
