@@ -3,10 +3,12 @@ package userModel
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 
 	"github.com/gorilla/mux"
+	crypto "github.com/jatan/go-fiber-app/crypto"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/sqlite"
 )
@@ -15,8 +17,9 @@ var db *gorm.DB
 
 type User struct {
 	gorm.Model
-	Name  string
-	Email string
+	Name     string
+	Email    string
+	Password string
 }
 
 func AllUsers(w http.ResponseWriter, r *http.Request) {
@@ -28,9 +31,7 @@ func AllUsers(w http.ResponseWriter, r *http.Request) {
 
 	var users []User
 	db.Find(&users)
-	fmt.Println("{}", users)
-
-	json.NewEncoder(w).Encode(users)
+	respondWithJSON(w, 200, users)
 }
 
 func NewUser(w http.ResponseWriter, r *http.Request) {
@@ -46,11 +47,8 @@ func NewUser(w http.ResponseWriter, r *http.Request) {
 	name := vars["name"]
 	email := vars["email"]
 
-	fmt.Println(name)
-	fmt.Println(email)
-
 	db.Create(&User{Name: name, Email: email})
-	fmt.Fprintf(w, "New User Successfully Created")
+	respondWithJSON(w, 200, "New User Successfully Created")
 }
 
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +65,7 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	db.Where("name = ?", name).Find(&user)
 	db.Delete(&user)
 
-	fmt.Fprintf(w, "Successfully Deleted User")
+	respondWithJSON(w, 200, "Successfully Deleted User")
 }
 
 func UpdateUser(w http.ResponseWriter, r *http.Request) {
@@ -87,19 +85,65 @@ func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	user.Email = email
 
 	db.Save(&user)
-	fmt.Fprintf(w, "Successfully Updated User")
+	respondWithJSON(w, 200, "Successfully Updated User")
 }
 
-func handleRequests() {
+func RegisterUser(w http.ResponseWriter, r *http.Request) {
+	dat, err := io.ReadAll(r.Body)
+	if err != nil {
+		respondWithError(w, 500, "couldn't read request")
+		return
+	}
+	existingUser := User{}
+	user := User{}
+	err = json.Unmarshal(dat, &user)
+	if err != nil {
+		respondWithError(w, 500, "couldn't unmarshal parameters")
+		return
+	}
+	temp, err := crypto.Generate("Test")
+	fmt.Println(temp)
+	db, err := gorm.Open("sqlite3", "test.db")
+	if err != nil {
+		panic("failed to connect database")
+	}
+	defer db.Close()
+	db.Where("name = ?", user.Name).Find(&existingUser)
+	if existingUser.Name != "" {
+		respondWithJSON(w, 400, "User "+user.Name+" Already exisits")
+	} else {
+		db.Create(&user)
+		respondWithJSON(w, 200, " New User "+user.Name+" Successfully Created")
+	}
+}
+
+func respondWithError(w http.ResponseWriter, code int, msg string) error {
+	return respondWithJSON(w, code, map[string]string{"error": msg})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) error {
+	response, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.WriteHeader(code)
+	w.Write(response)
+	return nil
+}
+
+func HandleRequests() {
 	myRouter := mux.NewRouter().StrictSlash(true)
-	myRouter.HandleFunc("/users", allUsers).Methods("GET")
-	myRouter.HandleFunc("/user/{name}", deleteUser).Methods("DELETE")
-	myRouter.HandleFunc("/user/{name}/{email}", updateUser).Methods("PUT")
-	myRouter.HandleFunc("/user/{name}/{email}", newUser).Methods("POST")
+	myRouter.HandleFunc("/register", RegisterUser).Methods("POST")
+	myRouter.HandleFunc("/users", AllUsers).Methods("GET")
+	myRouter.HandleFunc("/user/{name}", DeleteUser).Methods("DELETE")
+	myRouter.HandleFunc("/user/{name}/{email}", UpdateUser).Methods("PUT")
+	myRouter.HandleFunc("/user/{name}/{email}", NewUser).Methods("POST")
 	log.Fatal(http.ListenAndServe(":8081", myRouter))
 }
 
-func initialMigration() {
+func InitialMigration() {
 	db, err := gorm.Open("sqlite3", "test.db")
 	if err != nil {
 		fmt.Println(err.Error())

@@ -16,6 +16,8 @@ github.com/jinzhu/now
 github.com/mattn/go-sqlite3
 # golang.org/x/crypto v0.0.0-20210513164829-c07d793c2f9a
 ## explicit; go 1.17
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 # gorm.io/driver/sqlite v1.2.6
 ## explicit; go 1.14
 gorm.io/driver/sqlite
